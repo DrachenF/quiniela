@@ -1,1 +1,3 @@
-export default function Login(){return <section className="card mx-auto max-w-md p-6"><h1 className="text-3xl font-black">Iniciar sesión</h1><input className="input mt-4" placeholder="Correo"/><input className="input mt-3" placeholder="Contraseña" type="password"/><button className="btn mt-4 w-full">Entrar</button><button className="btn secondary mt-3 w-full">Continuar con Google</button></section>}
+import { LoginForm } from '@/components/auth/auth-forms';
+import { ConfigNotice } from '@/components/config-notice';
+export default function Login(){return <><ConfigNotice/><section className="card mx-auto mt-4 max-w-md p-6"><h1 className="text-3xl font-black">Iniciar sesión</h1><LoginForm/></section></>}
