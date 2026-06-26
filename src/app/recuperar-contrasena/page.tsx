@@ -1,1 +1,3 @@
-export default function Recuperar(){return <section className="card mx-auto max-w-md p-6"><h1 className="text-3xl font-black">Recuperar contraseña</h1><input className="input mt-4" placeholder="Correo"/><button className="btn mt-4 w-full">Enviar enlace</button></section>}
+import { RecoverForm } from '@/components/auth/auth-forms';
+import { ConfigNotice } from '@/components/config-notice';
+export default function Recuperar(){return <><ConfigNotice/><section className="card mx-auto mt-4 max-w-md p-6"><h1 className="text-3xl font-black">Recuperar contraseña</h1><RecoverForm/></section></>}
