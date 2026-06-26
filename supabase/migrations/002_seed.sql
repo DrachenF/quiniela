@@ -1,3 +1,1 @@
-insert into teams(name,short_name,fifa_code,iso_code,is_active) values ('Por definir','TBD','TBD','',true) on conflict do nothing;
-insert into app_settings(key,value) values ('app_name','"Quiniela Mundial 2026"'),('timezone','"America/Guatemala"') on conflict(key) do update set value=excluded.value;
-insert into matches(round,round_order,kickoff_at,stadium,city) select case when n<=16 then 'ROUND_OF_32'::match_round when n<=24 then 'ROUND_OF_16'::match_round when n<=28 then 'QUARTER_FINAL'::match_round when n<=30 then 'SEMI_FINAL'::match_round when n=31 then 'THIRD_PLACE'::match_round else 'FINAL'::match_round end, n, '2026-06-28 20:00:00+00'::timestamptz + ((n-1)||' days')::interval, 'Por definir','Por definir' from generate_series(1,32) n on conflict do nothing;
+insert into app_settings(key,value) values ('scoring','{"exact":3,"outcome":1,"qualified":1}'::jsonb) on conflict (key) do update set value=excluded.value, updated_at=now();

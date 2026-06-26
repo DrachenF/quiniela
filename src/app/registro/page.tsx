@@ -1,1 +1,3 @@
-export default function Registro(){return <section className="card mx-auto max-w-md p-6"><h1 className="text-3xl font-black">Crear cuenta</h1>{['Nombre','Apellido','Correo','Contraseña','Confirmar contraseña'].map((p,i)=><input key={p} className="input mt-3" placeholder={p} type={i>2?'password':'text'}/>)}<button className="btn mt-4 w-full">Registrarme</button></section>}
+import { RegisterForm } from '@/components/auth/auth-forms';
+import { ConfigNotice } from '@/components/config-notice';
+export default function Registro(){return <><ConfigNotice/><section className="card mx-auto mt-4 max-w-md p-6"><h1 className="text-3xl font-black">Crear cuenta</h1><RegisterForm/></section></>}
