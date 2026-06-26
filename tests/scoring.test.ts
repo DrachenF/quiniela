@@ -25,7 +25,7 @@ it('usuario normal no accede admin',()=>expect(false).toBe(false));
 it('propagación de ganador', () => {
   const brasil: Team = {
     id: 'br',
-    name: 'Brasil',
+    name: 'Equipo A',
     shortName: 'BRA',
     fifaCode: 'BRA',
     isoCode: 'BR',
@@ -35,7 +35,7 @@ it('propagación de ganador', () => {
   const francia: Team = {
     ...brasil,
     id: 'fr',
-    name: 'Francia',
+    name: 'Equipo B',
     shortName: 'FRA',
     fifaCode: 'FRA',
     isoCode: 'FR',
@@ -72,7 +72,7 @@ it('propagación de ganador', () => {
 it('propagación perdedor tercer puesto', () => {
   const brasil: Team = {
     id: 'br',
-    name: 'Brasil',
+    name: 'Equipo A',
     shortName: 'BRA',
     fifaCode: 'BRA',
     isoCode: 'BR',
@@ -82,7 +82,7 @@ it('propagación perdedor tercer puesto', () => {
   const francia: Team = {
     ...brasil,
     id: 'fr',
-    name: 'Francia',
+    name: 'Equipo B',
     shortName: 'FRA',
     fifaCode: 'FRA',
     isoCode: 'FR',

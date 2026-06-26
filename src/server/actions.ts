@@ -1,5 +1,72 @@
 'use server';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { validatePredictionInput } from '@/lib/scoring';
-const predictionSchema=z.object({matchId:z.string(),home:z.coerce.number().int().min(0).max(20),away:z.coerce.number().int().min(0).max(20),round:z.string(),homeTeamId:z.string().nullable(),awayTeamId:z.string().nullable(),qualifiedTeamId:z.string().nullable().optional()});
-export async function savePredictionAction(_:unknown, formData:FormData){ const parsed=predictionSchema.safeParse(Object.fromEntries(formData)); if(!parsed.success) return {ok:false,message:'Datos inválidos'}; try{const data=parsed.data; validatePredictionInput(data.home,data.away,data.round,data.homeTeamId,data.awayTeamId,data.qualifiedTeamId); return {ok:true,message:'Pronóstico guardado (modo demo). Con Supabase configurado se persiste en PostgreSQL.'};}catch(e){return {ok:false,message:e instanceof Error?e.message:'Error'}} }
+import { validateResultInput, type ValidatedResultInput } from '@/lib/result-validation';
+import { createClient } from '@/lib/supabase/server';
+
+async function requireSupabase() { const sb = await createClient(); if (!sb) throw new Error('Supabase no está configurado.'); return sb; }
+async function requireUser() { const sb = await requireSupabase(); const { data: { user }, error } = await sb.auth.getUser(); if (error || !user) redirect('/login'); return { sb, user }; }
+async function requireAdmin() { const { sb, user } = await requireUser(); const { data } = await sb.from('profiles').select('role,is_active').eq('id', user.id).single(); if (data?.role !== 'admin' || !data?.is_active) redirect('/403'); return { sb, user }; }
+
+export async function signOutAction() { const sb = await requireSupabase(); await sb.auth.signOut(); redirect('/login'); }
+export async function completeProfileAction(_: unknown, formData: FormData) { const { sb, user } = await requireUser(); const first = String(formData.get('first_name') ?? '').trim(); const last = String(formData.get('last_name') ?? '').trim(); if (!first || !last) return { ok:false, message:'Nombre y apellido son obligatorios.'}; const { error } = await sb.from('profiles').update({ first_name:first, last_name:last, profile_completed:true, updated_at:new Date().toISOString() }).eq('id', user.id); if (error) return { ok:false, message:error.message }; revalidatePath('/perfil'); return { ok:true, message:'Perfil actualizado.'}; }
+const predictionSchema = z.object({ matchId:z.string().uuid(), home:z.coerce.number().int().min(0).max(20), away:z.coerce.number().int().min(0).max(20), qualifiedTeamId:z.string().uuid().nullable().optional() });
+export async function savePredictionAction(_: unknown, formData: FormData) { const parsed = predictionSchema.safeParse({ matchId: formData.get('matchId'), home: formData.get('home'), away: formData.get('away'), qualifiedTeamId: formData.get('qualifiedTeamId') || null }); if (!parsed.success) return { ok:false, message:'Datos inválidos.'}; const { sb, user } = await requireUser(); const { data: profile } = await sb.from('profiles').select('is_active,profile_completed').eq('id', user.id).single(); if (!profile?.is_active || !profile?.profile_completed) return { ok:false, message:'Tu perfil está incompleto o inactivo.'}; const { data: m, error: matchError } = await sb.from('matches').select('id,round,home_team_id,away_team_id,lock_at,manually_locked,status').eq('id', parsed.data.matchId).single(); if (matchError || !m) return { ok:false, message:'Partido no encontrado.'}; if (new Date() >= new Date(m.lock_at) || m.manually_locked || ['LOCKED','LIVE','FINISHED','CANCELLED'].includes(m.status)) return { ok:false, message:'Pronóstico cerrado.'}; try { const valid = validatePredictionInput(parsed.data.home, parsed.data.away, m.round, m.home_team_id, m.away_team_id, parsed.data.qualifiedTeamId); const { error } = await sb.from('predictions').upsert({ user_id:user.id, match_id:m.id, predicted_home_score:parsed.data.home, predicted_away_score:parsed.data.away, predicted_outcome:valid.predictedOutcome, predicted_qualified_team_id:valid.predictedQualifiedTeamId, updated_at:new Date().toISOString() }, { onConflict:'user_id,match_id' }); if (error) return { ok:false, message:error.message }; revalidatePath('/quiniela'); return { ok:true, message:'Pronóstico guardado.'}; } catch (e) { return { ok:false, message:e instanceof Error ? e.message : 'Error' }; } }
+const teamSchema = z.object({ id:z.string().uuid().optional(), name:z.string().min(1), short_name:z.string().min(1), fifa_code:z.string().optional(), iso_code:z.string().optional(), flag_url:z.string().optional(), external_id:z.string().optional(), is_active:z.coerce.boolean().optional() });
+export async function saveTeamAction(_: unknown, formData: FormData) { const { sb, user } = await requireAdmin(); const data = teamSchema.parse(Object.fromEntries(formData)); const { error, data: saved } = await sb.from('teams').upsert(data).select('id').single(); if (error) return { ok:false, message:error.message }; await sb.from('audit_logs').insert({ admin_user_id:user.id, action:'UPSERT_TEAM', entity:'teams', entity_id:saved.id, new_value:data }); revalidatePath('/admin'); return { ok:true, message:'Equipo guardado.'}; }
+const matchSchema = z.object({ id:z.string().uuid().optional(), round:z.string(), round_order:z.coerce.number().int(), home_team_id:z.string().uuid().nullable().optional(), away_team_id:z.string().uuid().nullable().optional(), kickoff_at:z.string().nullable().optional(), stadium:z.string().nullable().optional(), city:z.string().nullable().optional(), status:z.string().optional(), manually_locked:z.coerce.boolean().optional(), home_score_90:z.coerce.number().int().min(0).max(20).nullable().optional(), away_score_90:z.coerce.number().int().min(0).max(20).nullable().optional(), qualified_team_id:z.string().uuid().nullable().optional() });
+export async function saveMatchAction(_: unknown, formData: FormData) {
+  const { sb, user } = await requireAdmin();
+  const raw: Record<string, FormDataEntryValue | null> = Object.fromEntries(formData);
+  for (const key of ['home_team_id', 'away_team_id', 'qualified_team_id', 'kickoff_at', 'stadium', 'city']) {
+    if (raw[key] === '') raw[key] = null;
+  }
+  const data = matchSchema.parse(raw);
+  const { error, data: saved } = await sb.from('matches').upsert(data).select('id').single();
+  if (error) return { ok: false, message: error.message };
+  await sb.from('audit_logs').insert({ admin_user_id: user.id, action: 'UPSERT_MATCH', entity: 'matches', entity_id: saved.id, new_value: data });
+  revalidatePath('/admin');
+  return { ok: true, message: 'Partido guardado.' };
+}
+
+export async function saveResultAction(_: unknown, formData: FormData) {
+  const { sb, user } = await requireAdmin();
+  const id = String(formData.get('id') ?? '');
+  const { data: match, error: matchError } = await sb
+    .from('matches')
+    .select('id,round,home_team_id,away_team_id,home_score_90,away_score_90,qualified_team_id,status')
+    .eq('id', id)
+    .single();
+  if (matchError || !match) return { ok: false, message: 'Partido no encontrado.' };
+
+  let payload: ValidatedResultInput;
+  try {
+    payload = validateResultInput({
+      id: formData.get('id'),
+      homeScore: formData.get('home_score_90'),
+      awayScore: formData.get('away_score_90'),
+      qualifiedTeamId: formData.get('qualified_team_id'),
+      match,
+    });
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Resultado inválido.' };
+  }
+
+  const { error } = await sb.from('matches').update(payload).eq('id', payload.id);
+  if (error) return { ok: false, message: error.message };
+  await sb.from('audit_logs').insert({
+    admin_user_id: user.id,
+    action: 'SAVE_RESULT',
+    entity: 'matches',
+    entity_id: payload.id,
+    old_value: match,
+    new_value: payload,
+  });
+  const { error: rpcError } = await sb.rpc('recalculate_match_predictions', { p_match_id: payload.id });
+  if (rpcError) return { ok: false, message: rpcError.message };
+  revalidatePath('/admin');
+  revalidatePath('/clasificacion');
+  return { ok: true, message: 'Resultado guardado y ranking recalculado.' };
+}
