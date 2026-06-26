@@ -19,6 +19,7 @@ it('rechaza en instante exacto del cierre',()=>expect(isPredictionLocked({lockAt
 it('cambio de horario recalcula',()=>expect(calculateLockAt('2026-07-01T15:00:00Z').toISOString()).toBe('2026-07-01T14:55:00.000Z'));
 it('aplazado no bloquea por estado solamente',()=>expect(isPredictionLocked({lockAt:'2026-07-01T13:55:00Z',kickoffAt:'2026-07-01T14:00:00Z',status:'POSTPONED'},new Date('2026-06-01'))).toBe(false));
 it('cancelado bloquea',()=>expect(isPredictionLocked({lockAt:'2026-07-01T13:55:00Z',kickoffAt:'2026-07-01T14:00:00Z',status:'CANCELLED'},new Date('2026-06-01'))).toBe(true));
+it('partido sin fecha está bloqueado',()=>expect(isPredictionLocked({lockAt:null,kickoffAt:null,status:'SCHEDULED'},new Date('2026-06-01'))).toBe(true));
 it('usuario no puede editar ajena (modelo de política)',()=>expect('user_id=auth.uid()').toContain('auth.uid'));
 it('usuario no puede modificar puntos (modelo de política)',()=>expect('result_points preservado por trigger').toContain('trigger'));
 it('usuario normal no accede admin',()=>expect(false).toBe(false));

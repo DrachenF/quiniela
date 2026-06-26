@@ -13,9 +13,71 @@ create index on matches(kickoff_at); create index on matches(round); create inde
 create or replace function is_admin() returns boolean language sql stable security definer set search_path=public as $$ select exists(select 1 from profiles where id=auth.uid() and role='admin' and is_active) $$;
 create or replace function handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$ begin insert into profiles(id,first_name,last_name,email,avatar_url,profile_completed) values(new.id, coalesce(new.raw_user_meta_data->>'first_name', split_part(coalesce(new.raw_user_meta_data->>'full_name',''),' ',1),''), coalesce(new.raw_user_meta_data->>'last_name',''), new.email, new.raw_user_meta_data->>'avatar_url', (coalesce(new.raw_user_meta_data->>'first_name','')<>'' and coalesce(new.raw_user_meta_data->>'last_name','')<>'')) on conflict(id) do nothing; return new; end $$;
 create trigger on_auth_user_created after insert on auth.users for each row execute function handle_new_user();
-create or replace function reject_locked_prediction() returns trigger language plpgsql security definer set search_path=public as $$ declare m matches; p profiles; begin select * into m from matches where id=new.match_id; select * into p from profiles where id=new.user_id; if p.is_active is not true or p.profile_completed is not true then raise exception 'Perfil incompleto o inactivo'; end if; if m.home_team_id is null or m.away_team_id is null then raise exception 'No se puede pronosticar equipos Por definir'; end if; if m.lock_at is null or now() >= m.lock_at or m.manually_locked or m.status in ('LOCKED','LIVE','FINISHED','CANCELLED') then raise exception 'Pronóstico cerrado'; end if; if new.predicted_outcome='DRAW' and m.round <> 'THIRD_PLACE' and new.predicted_qualified_team_id is null then raise exception 'Seleccione quién clasifica'; end if; new.result_points:=coalesce(old.result_points,0); new.qualified_points:=coalesce(old.qualified_points,0); new.total_points:=coalesce(old.total_points,0); return new; end $$;
+create or replace function reject_locked_prediction() returns trigger language plpgsql security definer set search_path=public as $$
+declare
+  m matches;
+  p profiles;
+begin
+  select * into m from matches where id = new.match_id;
+  if not found then raise exception 'Partido no encontrado'; end if;
+  select * into p from profiles where id = new.user_id;
+  if not found or p.is_active is not true or p.profile_completed is not true then raise exception 'Perfil incompleto o inactivo'; end if;
+  if m.home_team_id is null or m.away_team_id is null then raise exception 'No se puede pronosticar equipos Por definir'; end if;
+  if m.lock_at is null or now() >= m.lock_at or m.manually_locked or m.status in ('LOCKED','LIVE','FINISHED','CANCELLED') then raise exception 'Pronóstico cerrado'; end if;
+  if new.predicted_home_score > new.predicted_away_score then
+    if new.predicted_outcome <> 'HOME' then raise exception 'Pronóstico inconsistente'; end if;
+    new.predicted_qualified_team_id := case when m.round = 'THIRD_PLACE' then null else m.home_team_id end;
+  elsif new.predicted_home_score < new.predicted_away_score then
+    if new.predicted_outcome <> 'AWAY' then raise exception 'Pronóstico inconsistente'; end if;
+    new.predicted_qualified_team_id := case when m.round = 'THIRD_PLACE' then null else m.away_team_id end;
+  else
+    if new.predicted_outcome <> 'DRAW' then raise exception 'Pronóstico inconsistente'; end if;
+    if m.round = 'THIRD_PLACE' then
+      new.predicted_qualified_team_id := null;
+    elsif new.predicted_qualified_team_id is null then
+      raise exception 'Seleccione quién clasifica';
+    elsif new.predicted_qualified_team_id <> m.home_team_id and new.predicted_qualified_team_id <> m.away_team_id then
+      raise exception 'El equipo clasificado debe ser local o visitante';
+    end if;
+  end if;
+  if TG_OP = 'INSERT' then
+    new.result_points := 0; new.qualified_points := 0; new.total_points := 0; new.calculation_status := 'PENDING';
+  elsif TG_OP = 'UPDATE' then
+    new.result_points := old.result_points; new.qualified_points := old.qualified_points; new.total_points := old.total_points; new.calculation_status := old.calculation_status;
+  end if;
+  return new;
+end $$;
 create trigger predictions_lock before insert or update on predictions for each row execute function reject_locked_prediction();
-create or replace function recalculate_match_predictions(p_match_id uuid) returns void language plpgsql security definer set search_path=public as $$ declare m matches; begin select * into m from matches where id=p_match_id; update matches set winner_team_id=qualified_team_id, loser_team_id=case when home_team_id=qualified_team_id then away_team_id when away_team_id=qualified_team_id then home_team_id end, updated_at=now() where id=p_match_id; update predictions p set result_points=case when p.predicted_home_score=m.home_score_90 and p.predicted_away_score=m.away_score_90 then 3 when (p.predicted_home_score>p.predicted_away_score and m.home_score_90>m.away_score_90) or (p.predicted_home_score<p.predicted_away_score and m.home_score_90<m.away_score_90) or (p.predicted_home_score=p.predicted_away_score and m.home_score_90=m.away_score_90) then 1 else 0 end, qualified_points=case when m.round<>'THIRD_PLACE' and p.predicted_qualified_team_id=m.qualified_team_id then 1 else 0 end, total_points=case when p.predicted_home_score=m.home_score_90 and p.predicted_away_score=m.away_score_90 then 3 when (p.predicted_home_score>p.predicted_away_score and m.home_score_90>m.away_score_90) or (p.predicted_home_score<p.predicted_away_score and m.home_score_90<m.away_score_90) or (p.predicted_home_score=p.predicted_away_score and m.home_score_90=m.away_score_90) then 1 else 0 end + case when m.round<>'THIRD_PLACE' and p.predicted_qualified_team_id=m.qualified_team_id then 1 else 0 end, calculation_status='CALCULATED', updated_at=now() where p.match_id=p_match_id; insert into audit_logs(action,entity,entity_id,new_value) values('RECALCULATE','matches',p_match_id::text,to_jsonb(m)); end $$;
+create or replace function recalculate_match_predictions(p_match_id uuid) returns void language plpgsql security definer set search_path=public as $$
+declare
+  m matches;
+  computed_winner_team_id uuid;
+  computed_loser_team_id uuid;
+  dep matches;
+  old_dep jsonb;
+  new_dep jsonb;
+begin
+  select * into m from matches where id = p_match_id;
+  if not found then raise exception 'Partido no encontrado'; end if;
+  if m.status <> 'FINISHED' then raise exception 'El partido no está finalizado'; end if;
+  if m.home_team_id is null or m.away_team_id is null or m.home_score_90 is null or m.away_score_90 is null then raise exception 'Resultado incompleto'; end if;
+  if m.round = 'THIRD_PLACE' then
+    computed_winner_team_id := case when m.home_score_90 > m.away_score_90 then m.home_team_id when m.away_score_90 > m.home_score_90 then m.away_team_id else null end;
+  elsif m.home_score_90 > m.away_score_90 then computed_winner_team_id := m.home_team_id;
+  elsif m.away_score_90 > m.home_score_90 then computed_winner_team_id := m.away_team_id;
+  else computed_winner_team_id := m.qualified_team_id;
+  end if;
+  if computed_winner_team_id is null or (computed_winner_team_id <> m.home_team_id and computed_winner_team_id <> m.away_team_id) then raise exception 'Ganador inválido'; end if;
+  computed_loser_team_id := case when computed_winner_team_id = m.home_team_id then m.away_team_id else m.home_team_id end;
+  update matches set winner_team_id = computed_winner_team_id, loser_team_id = computed_loser_team_id, updated_at = now() where id = p_match_id and (winner_team_id is distinct from computed_winner_team_id or loser_team_id is distinct from computed_loser_team_id);
+  update predictions p set result_points=case when p.predicted_home_score=m.home_score_90 and p.predicted_away_score=m.away_score_90 then 3 when (p.predicted_home_score>p.predicted_away_score and m.home_score_90>m.away_score_90) or (p.predicted_home_score<p.predicted_away_score and m.home_score_90<m.away_score_90) or (p.predicted_home_score=p.predicted_away_score and m.home_score_90=m.away_score_90) then 1 else 0 end, qualified_points=case when m.round<>'THIRD_PLACE' and p.predicted_qualified_team_id=computed_winner_team_id then 1 else 0 end, total_points=case when p.predicted_home_score=m.home_score_90 and p.predicted_away_score=m.away_score_90 then 3 when (p.predicted_home_score>p.predicted_away_score and m.home_score_90>m.away_score_90) or (p.predicted_home_score<p.predicted_away_score and m.home_score_90<m.away_score_90) or (p.predicted_home_score=p.predicted_away_score and m.home_score_90=m.away_score_90) then 1 else 0 end + case when m.round<>'THIRD_PLACE' and p.predicted_qualified_team_id=computed_winner_team_id then 1 else 0 end, calculation_status='CALCULATED', updated_at=now() where p.match_id=p_match_id;
+  for dep in select * from matches where home_source_match_id = p_match_id or away_source_match_id = p_match_id loop
+    old_dep := to_jsonb(dep);
+    update matches set home_team_id=case when dep.home_source_match_id=p_match_id and dep.home_source_type='WINNER' then computed_winner_team_id when dep.home_source_match_id=p_match_id and dep.home_source_type='LOSER' then computed_loser_team_id else home_team_id end, away_team_id=case when dep.away_source_match_id=p_match_id and dep.away_source_type='WINNER' then computed_winner_team_id when dep.away_source_match_id=p_match_id and dep.away_source_type='LOSER' then computed_loser_team_id else away_team_id end, updated_at=now() where id=dep.id and ((dep.home_source_match_id=p_match_id and dep.home_source_type in ('WINNER','LOSER')) or (dep.away_source_match_id=p_match_id and dep.away_source_type in ('WINNER','LOSER'))) and (home_team_id is distinct from case when dep.home_source_match_id=p_match_id and dep.home_source_type='WINNER' then computed_winner_team_id when dep.home_source_match_id=p_match_id and dep.home_source_type='LOSER' then computed_loser_team_id else home_team_id end or away_team_id is distinct from case when dep.away_source_match_id=p_match_id and dep.away_source_type='WINNER' then computed_winner_team_id when dep.away_source_match_id=p_match_id and dep.away_source_type='LOSER' then computed_loser_team_id else away_team_id end) returning to_jsonb(matches) into new_dep;
+    if new_dep is not null and old_dep is distinct from new_dep then insert into audit_logs(action,entity,entity_id,old_value,new_value,context) values('PROPAGATE_BRACKET','matches',dep.id::text,old_dep,new_dep,jsonb_build_object('source_match_id',p_match_id)); end if;
+  end loop;
+  insert into audit_logs(action,entity,entity_id,new_value) values('RECALCULATE','matches',p_match_id::text,jsonb_build_object('winner_team_id',computed_winner_team_id,'loser_team_id',computed_loser_team_id));
+end $$;
 create or replace function public_leaderboard() returns table(position bigint, participant_name text, total_points bigint, exact_scores bigint, outcomes bigint, qualified bigint, counted bigint) language sql stable security definer set search_path=public as $$ with agg as (select p.id, p.first_name, coalesce(sum(pr.total_points),0) total_points, count(*) filter(where pr.result_points=3) exact_scores, count(*) filter(where pr.result_points=1) outcomes, count(*) filter(where pr.qualified_points=1) qualified, count(*) filter(where pr.calculation_status='CALCULATED') counted from profiles p join predictions pr on pr.user_id=p.id where p.is_active and p.profile_completed and pr.calculation_status='CALCULATED' group by p.id,p.first_name having coalesce(sum(pr.total_points),0)>0), ranked as (select *, rank() over(order by total_points desc, exact_scores desc, outcomes desc, qualified desc) position from agg) select position, first_name, total_points, exact_scores, outcomes, qualified, counted from ranked order by position $$;
 alter table profiles enable row level security; alter table teams enable row level security; alter table matches enable row level security; alter table predictions enable row level security; alter table audit_logs enable row level security;
 create policy profiles_own_read on profiles for select using(id=auth.uid() or is_admin()); create policy profiles_own_update on profiles for update using(id=auth.uid()) with check(id=auth.uid() and role=(select role from profiles where id=auth.uid()) and is_active=(select is_active from profiles where id=auth.uid()));
