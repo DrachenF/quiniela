@@ -12,6 +12,7 @@ it('punto por clasificado independiente',()=>expect(scorePrediction({...base,pre
 it('empate con clasificado',()=>expect(scorePrediction({officialHome:1,officialAway:1,qualifiedTeamId:'br',round:'FINAL',status:'FINISHED',predHome:1,predAway:1,predQualifiedTeamId:'br'}).totalPoints).toBe(4));
 it('empate sin clasificado falla validación',()=>expect(()=>validatePredictionInput(1,1,'FINAL','br','fr',null)).toThrow());
 it('tercer puesto no da clasificado',()=>expect(scorePrediction({...base,round:'THIRD_PLACE',predHome:2,predAway:1,predQualifiedTeamId:'br'}).totalPoints).toBe(3));
+it('tercer puesto empatado no otorga punto por ganador oficial',()=>expect(scorePrediction({officialHome:1,officialAway:1,qualifiedTeamId:'br',round:'THIRD_PLACE',status:'FINISHED',predHome:1,predAway:1,predQualifiedTeamId:null}).totalPoints).toBe(3));
 it('máximo cuatro puntos',()=>expect(scorePrediction({...base,predHome:2,predAway:1,predQualifiedTeamId:'br'}).totalPoints).toBeLessThanOrEqual(4));
 it('idempotente no duplica',()=>{const a=scorePrediction({...base,predHome:2,predAway:1,predQualifiedTeamId:'br'});expect(scorePrediction({...base,predHome:2,predAway:1,predQualifiedTeamId:'br'})).toEqual(a)});
 it('cierre cinco minutos antes',()=>expect(calculateLockAt('2026-07-01T14:00:00Z').toISOString()).toBe('2026-07-01T13:55:00.000Z'));
@@ -19,6 +20,7 @@ it('rechaza en instante exacto del cierre',()=>expect(isPredictionLocked({lockAt
 it('cambio de horario recalcula',()=>expect(calculateLockAt('2026-07-01T15:00:00Z').toISOString()).toBe('2026-07-01T14:55:00.000Z'));
 it('aplazado no bloquea por estado solamente',()=>expect(isPredictionLocked({lockAt:'2026-07-01T13:55:00Z',kickoffAt:'2026-07-01T14:00:00Z',status:'POSTPONED'},new Date('2026-06-01'))).toBe(false));
 it('cancelado bloquea',()=>expect(isPredictionLocked({lockAt:'2026-07-01T13:55:00Z',kickoffAt:'2026-07-01T14:00:00Z',status:'CANCELLED'},new Date('2026-06-01'))).toBe(true));
+it('partido sin fecha está bloqueado',()=>expect(isPredictionLocked({lockAt:null,kickoffAt:null,status:'SCHEDULED'},new Date('2026-06-01'))).toBe(true));
 it('usuario no puede editar ajena (modelo de política)',()=>expect('user_id=auth.uid()').toContain('auth.uid'));
 it('usuario no puede modificar puntos (modelo de política)',()=>expect('result_points preservado por trigger').toContain('trigger'));
 it('usuario normal no accede admin',()=>expect(false).toBe(false));
