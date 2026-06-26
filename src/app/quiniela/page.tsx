@@ -1,0 +1,2 @@
+import { MatchCard } from '@/components/match-card';import { matches } from '@/lib/mock-data';
+export default function Quiniela(){return <div><h1 className="text-3xl font-black">Mis pronósticos</h1><p className="mt-2 text-slate-600">Horarios en America/Guatemala. Los partidos cierran cinco minutos antes.</p><button className="btn my-5">Guardar todos los abiertos</button><div className="grid gap-4 md:grid-cols-2">{matches.map(m=><MatchCard key={m.id} match={m}/>)}</div></div>}

@@ -1,0 +1,3 @@
+-- Requiere pg_cron y pg_net. Sustituir project-ref y secreto desde variables seguras.
+-- select cron.schedule('sync-world-cup-live','* * * * *',$$select net.http_post(url:='https://PROJECT.supabase.co/functions/v1/sync-world-cup-fixtures',headers:='{"Authorization":"Bearer SYNC_SECRET"}'::jsonb);$$);
+-- select cron.unschedule('sync-world-cup-live');

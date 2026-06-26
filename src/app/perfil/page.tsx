@@ -1,0 +1,1 @@
+export default function Perfil(){return <section className="card p-6"><h1 className="text-3xl font-black">Mi perfil</h1><div className="mt-4 grid gap-3 md:grid-cols-3"><p>Puntos totales: <b>0</b></p><p>Marcadores exactos: <b>0</b></p><p>Distancia al líder: <b>0</b></p></div></section>}

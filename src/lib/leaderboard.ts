@@ -1,0 +1,3 @@
+export type Row={participantName:string;totalPoints:number;exactScores:number;outcomes:number;qualified:number;counted:number;position?:number};
+export function rankRows(rows:Row[]):Row[]{const sorted=[...rows].sort((a,b)=>b.totalPoints-a.totalPoints||b.exactScores-a.exactScores||b.outcomes-a.outcomes||b.qualified-a.qualified);let last='';let pos=0;return sorted.map((r,i)=>{const key=[r.totalPoints,r.exactScores,r.outcomes,r.qualified].join('|'); if(key!==last){pos=i+1;last=key} return {...r,position:pos};});}
+export function publicOnly(row: Record<string, unknown>){ return {position:row.position,participantName:row.first_name,totalPoints:row.total_points,exactScores:row.exact_scores,outcomes:row.outcomes,qualified:row.qualified,counted:row.counted}; }
