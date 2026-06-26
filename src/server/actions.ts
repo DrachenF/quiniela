@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { validatePredictionInput } from '@/lib/scoring';
-import { parseResultForm, resultAuditSnapshot, validateResultForMatch } from '@/server/result-validation';
+import { parseResultForm, validateResultForMatch } from '@/server/result-validation';
 import { createClient } from '@/lib/supabase/server';
 
 async function requireSupabase() { const sb = await createClient(); if (!sb) throw new Error('Supabase no está configurado.'); return sb; }
@@ -34,7 +34,6 @@ export async function saveResultAction(_: unknown, formData: FormData) {
 
     if (matchError || !match) return { ok:false, message:'Partido no encontrado.' };
 
-    const oldValue = resultAuditSnapshot(match);
     const payload = validateResultForMatch({
       match,
       homeScore: parsed.homeScore,
@@ -42,19 +41,13 @@ export async function saveResultAction(_: unknown, formData: FormData) {
       requestedQualifiedTeamId: parsed.requestedQualifiedTeamId,
     });
 
-    const { error } = await sb.from('matches').update(payload).eq('id', parsed.id);
-    if (error) return { ok:false, message:error.message };
-
-    await sb.from('audit_logs').insert({
-      admin_user_id: user.id,
-      action: 'SAVE_RESULT',
-      entity: 'matches',
-      entity_id: parsed.id,
-      old_value: oldValue,
-      new_value: payload,
+    const { error: rpcError } = await sb.rpc('save_match_result', {
+      p_match_id: parsed.id,
+      p_home_score_90: payload.home_score_90,
+      p_away_score_90: payload.away_score_90,
+      p_qualified_team_id: payload.qualified_team_id,
+      p_admin_user_id: user.id,
     });
-
-    const { error: rpcError } = await sb.rpc('recalculate_match_predictions', { p_match_id:parsed.id });
     if (rpcError) return { ok:false, message:rpcError.message };
     revalidatePath('/admin');
     revalidatePath('/clasificacion');

@@ -65,7 +65,11 @@ describe('result validation', () => {
     expect(validateResultForMatch({ match: baseMatch, homeScore: 1, awayScore: 2, requestedQualifiedTeamId: otherId }).qualified_team_id).toBe(awayId);
   });
 
-  it('tercer puesto no guarda clasificado', () => {
-    expect(validateResultForMatch({ match: { ...baseMatch, round: 'THIRD_PLACE' }, homeScore: 1, awayScore: 1, requestedQualifiedTeamId: homeId }).qualified_team_id).toBeNull();
+  it('tercer puesto empatado guarda ganador oficial', () => {
+    expect(validateResultForMatch({ match: { ...baseMatch, round: 'THIRD_PLACE' }, homeScore: 1, awayScore: 1, requestedQualifiedTeamId: homeId }).qualified_team_id).toBe(homeId);
+  });
+
+  it('tercer puesto con ganador en 90 minutos no guarda clasificado', () => {
+    expect(validateResultForMatch({ match: { ...baseMatch, round: 'THIRD_PLACE' }, homeScore: 2, awayScore: 1, requestedQualifiedTeamId: homeId }).qualified_team_id).toBeNull();
   });
 });

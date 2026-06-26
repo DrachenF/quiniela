@@ -84,6 +84,23 @@ export function validateResultForMatch(args: {
   }
 
   if (match.round === 'THIRD_PLACE') {
+    if (homeScore === awayScore) {
+      if (!requestedQualifiedTeamId) {
+        throw new Error('Seleccione quién ganó el tercer puesto.');
+      }
+
+      if (requestedQualifiedTeamId !== match.home_team_id && requestedQualifiedTeamId !== match.away_team_id) {
+        throw new Error('El ganador debe ser local o visitante.');
+      }
+
+      return {
+        home_score_90: homeScore,
+        away_score_90: awayScore,
+        qualified_team_id: requestedQualifiedTeamId,
+        status: 'FINISHED',
+      };
+    }
+
     return {
       home_score_90: homeScore,
       away_score_90: awayScore,

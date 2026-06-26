@@ -12,6 +12,7 @@ it('punto por clasificado independiente',()=>expect(scorePrediction({...base,pre
 it('empate con clasificado',()=>expect(scorePrediction({officialHome:1,officialAway:1,qualifiedTeamId:'br',round:'FINAL',status:'FINISHED',predHome:1,predAway:1,predQualifiedTeamId:'br'}).totalPoints).toBe(4));
 it('empate sin clasificado falla validación',()=>expect(()=>validatePredictionInput(1,1,'FINAL','br','fr',null)).toThrow());
 it('tercer puesto no da clasificado',()=>expect(scorePrediction({...base,round:'THIRD_PLACE',predHome:2,predAway:1,predQualifiedTeamId:'br'}).totalPoints).toBe(3));
+it('tercer puesto empatado no otorga punto por ganador oficial',()=>expect(scorePrediction({officialHome:1,officialAway:1,qualifiedTeamId:'br',round:'THIRD_PLACE',status:'FINISHED',predHome:1,predAway:1,predQualifiedTeamId:null}).totalPoints).toBe(3));
 it('máximo cuatro puntos',()=>expect(scorePrediction({...base,predHome:2,predAway:1,predQualifiedTeamId:'br'}).totalPoints).toBeLessThanOrEqual(4));
 it('idempotente no duplica',()=>{const a=scorePrediction({...base,predHome:2,predAway:1,predQualifiedTeamId:'br'});expect(scorePrediction({...base,predHome:2,predAway:1,predQualifiedTeamId:'br'})).toEqual(a)});
 it('cierre cinco minutos antes',()=>expect(calculateLockAt('2026-07-01T14:00:00Z').toISOString()).toBe('2026-07-01T13:55:00.000Z'));
