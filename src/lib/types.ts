@@ -131,3 +131,6 @@ export type PublicLeaderboardRow = {
   qualified: number;
   counted: number;
 };
+
+export type MyLeaderboardEntry = PublicLeaderboardEntry;
+export type MyLeaderboardRow = PublicLeaderboardRow;

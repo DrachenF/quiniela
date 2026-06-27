@@ -10,7 +10,7 @@ test('visitante en /quiniela y /perfil es enviado a login cuando no hay sesión'
 test('ranking vacío no muestra participantes ficticios ni datos privados', async ({ page }) => {
   await page.goto('/clasificacion');
   await expect(page.getByText('Clasificación pública')).toBeVisible();
-  await expect(page.getByText('Todavía no hay participantes con puntos')).toBeVisible();
+  await expect(page.getByText('Todavía no hay participantes')).toBeVisible();
   await expect(page.getByText('Carlos')).toHaveCount(0);
   await expect(page.getByText('Andrea')).toHaveCount(0);
   await expect(page.getByText('José')).toHaveCount(0);
