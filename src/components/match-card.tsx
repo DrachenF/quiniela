@@ -26,6 +26,37 @@ function flag(iso?: string | null) {
   return iso ? String.fromCodePoint(...iso.toUpperCase().split('').map((char) => 127397 + char.charCodeAt(0))) : '🏳️';
 }
 
+type TeamFlagProps = {
+  flagUrl?: string | null;
+  isoCode?: string | null;
+  name?: string | null;
+};
+
+function TeamFlag({ flagUrl, isoCode, name }: TeamFlagProps) {
+  const [failed, setFailed] = useState(false);
+  const fallback = flag(isoCode);
+
+  if (flagUrl && !failed) {
+    return (
+      <img
+        src={flagUrl}
+        width={48}
+        height={32}
+        alt={name ? `Bandera de ${name}` : 'Bandera de selección'}
+        className="mx-auto h-8 w-12 rounded-sm object-cover shadow-sm ring-1 ring-slate-200"
+        style={{ objectFit: 'cover' }}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span aria-label={name ? `Bandera de ${name}` : 'Bandera de selección'} className="block text-4xl" role="img">
+      {fallback}
+    </span>
+  );
+}
+
 function getPredictedOutcome(home: string, away: string): Outcome | null {
   if (home === '' || away === '') return null;
   return outcome(Number(home), Number(away));
@@ -81,12 +112,12 @@ export function MatchCard({ match, prediction, readOnly = false }: MatchCardProp
 
       <div className="my-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
         <div>
-          <div className="text-4xl">{flag(match.homeTeam?.isoCode)}</div>
+          <TeamFlag flagUrl={match.homeTeam?.flagUrl} isoCode={match.homeTeam?.isoCode} name={match.homeTeam?.name} />
           <b>{match.homeTeam?.name || 'Por definir'}</b>
         </div>
         <span className="font-black text-slate-400">vs</span>
         <div>
-          <div className="text-4xl">{flag(match.awayTeam?.isoCode)}</div>
+          <TeamFlag flagUrl={match.awayTeam?.flagUrl} isoCode={match.awayTeam?.isoCode} name={match.awayTeam?.name} />
           <b>{match.awayTeam?.name || 'Por definir'}</b>
         </div>
       </div>

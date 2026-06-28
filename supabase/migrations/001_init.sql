@@ -5,10 +5,12 @@ create type match_status as enum ('SCHEDULED','LOCKED','LIVE','FINISHED','POSTPO
 create type prediction_outcome as enum ('HOME','DRAW','AWAY');
 create table profiles(id uuid primary key references auth.users(id) on delete cascade, first_name text not null default '', last_name text not null default '', email text not null, avatar_url text, role profile_role not null default 'user', is_active boolean not null default true, profile_completed boolean not null default false, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), last_login_at timestamptz);
 create table teams(id uuid primary key default gen_random_uuid(), name text not null, short_name text not null, fifa_code text, iso_code text, flag_url text, external_id text unique, is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
-create table matches(id uuid primary key default gen_random_uuid(), external_id text unique, round match_round not null, round_order int not null, home_team_id uuid references teams(id), away_team_id uuid references teams(id), kickoff_at timestamptz, lock_at timestamptz generated always as (case when kickoff_at is null then null else kickoff_at - interval '5 minutes' end) stored, stadium text, city text, status match_status not null default 'SCHEDULED', home_score_90 int check(home_score_90 between 0 and 20), away_score_90 int check(away_score_90 between 0 and 20), qualified_team_id uuid references teams(id), winner_team_id uuid references teams(id), loser_team_id uuid references teams(id), home_source_match_id uuid references matches(id), away_source_match_id uuid references matches(id), home_source_type text check(home_source_type in ('WINNER','LOSER')), away_source_type text check(away_source_type in ('WINNER','LOSER')), manually_edited boolean not null default false, manually_locked boolean not null default false, sync_error text, last_synced_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table matches(id uuid primary key default gen_random_uuid(), external_id text unique, round match_round not null, round_order int not null, home_team_id uuid references teams(id), away_team_id uuid references teams(id), kickoff_at timestamptz, lock_at timestamptz, stadium text, city text, status match_status not null default 'SCHEDULED', home_score_90 int check(home_score_90 between 0 and 20), away_score_90 int check(away_score_90 between 0 and 20), qualified_team_id uuid references teams(id), winner_team_id uuid references teams(id), loser_team_id uuid references teams(id), home_source_match_id uuid references matches(id), away_source_match_id uuid references matches(id), home_source_type text check(home_source_type in ('WINNER','LOSER')), away_source_type text check(away_source_type in ('WINNER','LOSER')), manually_edited boolean not null default false, manually_locked boolean not null default false, sync_error text, last_synced_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 create table predictions(id uuid primary key default gen_random_uuid(), user_id uuid not null references profiles(id) on delete cascade, match_id uuid not null references matches(id) on delete cascade, predicted_home_score int not null check(predicted_home_score between 0 and 20), predicted_away_score int not null check(predicted_away_score between 0 and 20), predicted_outcome prediction_outcome not null, predicted_qualified_team_id uuid references teams(id), result_points int not null default 0, qualified_points int not null default 0, total_points int not null default 0, calculation_status text not null default 'PENDING', created_at timestamptz not null default now(), updated_at timestamptz not null default now(), unique(user_id,match_id));
 create table audit_logs(id bigserial primary key, admin_user_id uuid references profiles(id), action text not null, entity text not null, entity_id text, old_value jsonb, new_value jsonb, ip_address inet, context jsonb, created_at timestamptz not null default now());
 create table app_settings(key text primary key, value jsonb not null, updated_at timestamptz not null default now());
+create or replace function set_match_lock_at() returns trigger language plpgsql security definer set search_path=public as $$ begin new.lock_at := case when new.kickoff_at is null then null else new.kickoff_at - interval '5 minutes' end; return new; end $$;
+create trigger matches_set_lock_at before insert or update of kickoff_at on matches for each row execute function set_match_lock_at();
 create index on matches(kickoff_at); create index on matches(round); create index on predictions(user_id); create index on predictions(match_id);
 create or replace function is_admin() returns boolean language sql stable security definer set search_path=public as $$ select exists(select 1 from profiles where id=auth.uid() and role='admin' and is_active) $$;
 create or replace function handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$ begin insert into profiles(id,first_name,last_name,email,avatar_url,profile_completed) values(new.id, coalesce(new.raw_user_meta_data->>'first_name', split_part(coalesce(new.raw_user_meta_data->>'full_name',''),' ',1),''), coalesce(new.raw_user_meta_data->>'last_name',''), new.email, new.raw_user_meta_data->>'avatar_url', (coalesce(new.raw_user_meta_data->>'first_name','')<>'' and coalesce(new.raw_user_meta_data->>'last_name','')<>'')) on conflict(id) do nothing; return new; end $$;
@@ -112,7 +114,49 @@ begin
   insert into audit_logs(admin_user_id,action,entity,entity_id,old_value,new_value) values(p_admin_user_id,'SAVE_RESULT','matches',p_match_id::text,old_value,new_value);
   perform recalculate_match_predictions(p_match_id);
 end $$;
-create or replace function public_leaderboard() returns table(position bigint, participant_name text, total_points bigint, exact_scores bigint, outcomes bigint, qualified bigint, counted bigint) language sql stable security definer set search_path=public as $$ with agg as (select p.id, p.first_name, coalesce(sum(pr.total_points),0) total_points, count(*) filter(where pr.result_points=3) exact_scores, count(*) filter(where pr.result_points=1) outcomes, count(*) filter(where pr.qualified_points=1) qualified, count(*) filter(where pr.calculation_status='CALCULATED') counted from profiles p join predictions pr on pr.user_id=p.id where p.is_active and p.profile_completed and pr.calculation_status='CALCULATED' group by p.id,p.first_name having coalesce(sum(pr.total_points),0)>0), ranked as (select *, rank() over(order by total_points desc, exact_scores desc, outcomes desc, qualified desc) position from agg) select position, first_name, total_points, exact_scores, outcomes, qualified, counted from ranked order by position $$;
+create or replace function public_leaderboard() returns table("position" bigint, participant_name text, total_points bigint, exact_scores bigint, outcomes bigint, qualified bigint, counted bigint) language sql stable security definer set search_path=public as $$
+  with agg as (
+    select
+      p.id,
+      p.first_name,
+      p.created_at,
+      coalesce(sum(pr.total_points) filter (where pr.calculation_status='CALCULATED'),0)::bigint total_points,
+      count(pr.id) filter(where pr.calculation_status='CALCULATED' and pr.result_points=3)::bigint exact_scores,
+      count(pr.id) filter(where pr.calculation_status='CALCULATED' and pr.result_points=1)::bigint outcomes,
+      count(pr.id) filter(where pr.calculation_status='CALCULATED' and pr.qualified_points=1)::bigint qualified,
+      count(pr.id) filter(where pr.calculation_status='CALCULATED')::bigint counted
+    from profiles p
+    left join predictions pr on pr.user_id=p.id
+    where p.is_active and p.profile_completed
+    group by p.id,p.first_name,p.created_at
+  ), ranked as (
+    select *, row_number() over(order by total_points desc, exact_scores desc, outcomes desc, qualified desc, created_at asc, id asc) ranking_position from agg
+  )
+  select ranking_position as "position", first_name, total_points, exact_scores, outcomes, qualified, counted from ranked order by ranking_position
+$$;
+create or replace function my_leaderboard_entry() returns table("position" bigint, participant_name text, total_points bigint, exact_scores bigint, outcomes bigint, qualified bigint, counted bigint) language sql stable security definer set search_path=public as $$
+  select ranked."position", ranked.participant_name, ranked.total_points, ranked.exact_scores, ranked.outcomes, ranked.qualified, ranked.counted
+  from (
+    with agg as (
+      select
+        p.id,
+        p.first_name,
+        p.created_at,
+        coalesce(sum(pr.total_points) filter (where pr.calculation_status='CALCULATED'),0)::bigint total_points,
+        count(pr.id) filter(where pr.calculation_status='CALCULATED' and pr.result_points=3)::bigint exact_scores,
+        count(pr.id) filter(where pr.calculation_status='CALCULATED' and pr.result_points=1)::bigint outcomes,
+        count(pr.id) filter(where pr.calculation_status='CALCULATED' and pr.qualified_points=1)::bigint qualified,
+        count(pr.id) filter(where pr.calculation_status='CALCULATED')::bigint counted
+      from profiles p
+      left join predictions pr on pr.user_id=p.id
+      where p.is_active and p.profile_completed
+      group by p.id,p.first_name,p.created_at
+    )
+    select row_number() over(order by total_points desc, exact_scores desc, outcomes desc, qualified desc, created_at asc, id asc) as "position", id, first_name as participant_name, total_points, exact_scores, outcomes, qualified, counted
+    from agg
+  ) ranked
+  where ranked.id = auth.uid()
+$$;
 alter table profiles enable row level security; alter table teams enable row level security; alter table matches enable row level security; alter table predictions enable row level security; alter table audit_logs enable row level security;
 create policy profiles_own_read on profiles for select using(id=auth.uid() or is_admin()); create policy profiles_own_update on profiles for update using(id=auth.uid()) with check(id=auth.uid() and role=(select role from profiles where id=auth.uid()) and is_active=(select is_active from profiles where id=auth.uid()));
 create policy teams_read on teams for select using(true); create policy teams_admin on teams for all using(is_admin()) with check(is_admin());
