@@ -1,24 +1,24 @@
 -- Idempotent seed for the first nine published knockout fixtures.
 with team_seed(name, short_name, fifa_code, iso_code, flag_url, external_id) as (
   values
-    ('Sudáfrica','Sudáfrica','RSA','ZA','https://flagcdn.com/w80/za.png','team-rsa'),
-    ('Canadá','Canadá','CAN','CA','https://flagcdn.com/w80/ca.png','team-can'),
-    ('Brasil','Brasil','BRA','BR','https://flagcdn.com/w80/br.png','team-bra'),
-    ('Japón','Japón','JPN','JP','https://flagcdn.com/w80/jp.png','team-jpn'),
-    ('Alemania','Alemania','GER','DE','https://flagcdn.com/w80/de.png','team-ger'),
-    ('Paraguay','Paraguay','PAR','PY','https://flagcdn.com/w80/py.png','team-par'),
-    ('Países Bajos','Países Bajos','NED','NL','https://flagcdn.com/w80/nl.png','team-ned'),
-    ('Marruecos','Marruecos','MAR','MA','https://flagcdn.com/w80/ma.png','team-mar'),
-    ('Costa de Marfil','Costa de Marfil','CIV','CI','https://flagcdn.com/w80/ci.png','team-civ'),
-    ('Noruega','Noruega','NOR','NO','https://flagcdn.com/w80/no.png','team-nor'),
-    ('Francia','Francia','FRA','FR','https://flagcdn.com/w80/fr.png','team-fra'),
-    ('Suecia','Suecia','SWE','SE','https://flagcdn.com/w80/se.png','team-swe'),
-    ('Estados Unidos','Estados Unidos','USA','US','https://flagcdn.com/w80/us.png','team-usa'),
-    ('Bosnia y Herzegovina','Bosnia','BIH','BA','https://flagcdn.com/w80/ba.png','team-bih'),
-    ('Argentina','Argentina','ARG','AR','https://flagcdn.com/w80/ar.png','team-arg'),
-    ('Cabo Verde','Cabo Verde','CPV','CV','https://flagcdn.com/w80/cv.png','team-cpv'),
-    ('Australia','Australia','AUS','AU','https://flagcdn.com/w80/au.png','team-aus'),
-    ('Egipto','Egipto','EGY','EG','https://flagcdn.com/w80/eg.png','team-egy')
+    ('Sudáfrica','Sudáfrica','RSA','ZA','https://flagcdn.com/w80/za.png','fifa-team-RSA'),
+    ('Canadá','Canadá','CAN','CA','https://flagcdn.com/w80/ca.png','fifa-team-CAN'),
+    ('Brasil','Brasil','BRA','BR','https://flagcdn.com/w80/br.png','fifa-team-BRA'),
+    ('Japón','Japón','JPN','JP','https://flagcdn.com/w80/jp.png','fifa-team-JPN'),
+    ('Alemania','Alemania','GER','DE','https://flagcdn.com/w80/de.png','fifa-team-GER'),
+    ('Paraguay','Paraguay','PAR','PY','https://flagcdn.com/w80/py.png','fifa-team-PAR'),
+    ('Países Bajos','Países Bajos','NED','NL','https://flagcdn.com/w80/nl.png','fifa-team-NED'),
+    ('Marruecos','Marruecos','MAR','MA','https://flagcdn.com/w80/ma.png','fifa-team-MAR'),
+    ('Costa de Marfil','Costa de Marfil','CIV','CI','https://flagcdn.com/w80/ci.png','fifa-team-CIV'),
+    ('Noruega','Noruega','NOR','NO','https://flagcdn.com/w80/no.png','fifa-team-NOR'),
+    ('Francia','Francia','FRA','FR','https://flagcdn.com/w80/fr.png','fifa-team-FRA'),
+    ('Suecia','Suecia','SWE','SE','https://flagcdn.com/w80/se.png','fifa-team-SWE'),
+    ('Estados Unidos','Estados Unidos','USA','US','https://flagcdn.com/w80/us.png','fifa-team-USA'),
+    ('Bosnia y Herzegovina','Bosnia','BIH','BA','https://flagcdn.com/w80/ba.png','fifa-team-BIH'),
+    ('Argentina','Argentina','ARG','AR','https://flagcdn.com/w80/ar.png','fifa-team-ARG'),
+    ('Cabo Verde','Cabo Verde','CPV','CV','https://flagcdn.com/w80/cv.png','fifa-team-CPV'),
+    ('Australia','Australia','AUS','AU','https://flagcdn.com/w80/au.png','fifa-team-AUS'),
+    ('Egipto','Egipto','EGY','EG','https://flagcdn.com/w80/eg.png','fifa-team-EGY')
 )
 insert into teams(name, short_name, fifa_code, iso_code, flag_url, external_id)
 select name, short_name, fifa_code, iso_code, flag_url, external_id from team_seed
@@ -33,15 +33,15 @@ on conflict (external_id) do update set
 
 with fixtures(external_id, round_order, home_external_id, away_external_id, kickoff_at, stadium, city) as (
   values
-    ('wc2026-r32-01-rsa-can', 1, 'team-rsa', 'team-can', '2026-06-28 13:00 America/Guatemala'::timestamptz, 'BC Place', 'Vancouver'),
-    ('wc2026-r32-02-bra-jpn', 2, 'team-bra', 'team-jpn', '2026-06-29 11:00 America/Guatemala'::timestamptz, 'Lumen Field', 'Seattle'),
-    ('wc2026-r32-03-ger-par', 3, 'team-ger', 'team-par', '2026-06-29 14:30 America/Guatemala'::timestamptz, 'Levi''s Stadium', 'Santa Clara'),
-    ('wc2026-r32-04-ned-mar', 4, 'team-ned', 'team-mar', '2026-06-29 19:00 America/Guatemala'::timestamptz, 'SoFi Stadium', 'Los Angeles'),
-    ('wc2026-r32-05-civ-nor', 5, 'team-civ', 'team-nor', '2026-06-30 11:00 America/Guatemala'::timestamptz, 'Gillette Stadium', 'Foxborough'),
-    ('wc2026-r32-06-fra-swe', 6, 'team-fra', 'team-swe', '2026-06-30 15:00 America/Guatemala'::timestamptz, 'MetLife Stadium', 'New York/New Jersey'),
-    ('wc2026-r32-07-usa-bih', 7, 'team-usa', 'team-bih', '2026-07-01 18:00 America/Guatemala'::timestamptz, 'AT&T Stadium', 'Dallas'),
-    ('wc2026-r32-08-arg-cpv', 8, 'team-arg', 'team-cpv', '2026-07-02 16:00 America/Guatemala'::timestamptz, 'Mercedes-Benz Stadium', 'Atlanta'),
-    ('wc2026-r32-09-aus-egy', 9, 'team-aus', 'team-egy', '2026-07-03 12:00 America/Guatemala'::timestamptz, 'NRG Stadium', 'Houston')
+    ('fifa-2026-match-73', 73, 'fifa-team-RSA', 'fifa-team-CAN', '2026-06-28 13:00 America/Guatemala'::timestamptz, 'Los Angeles Stadium', 'Inglewood'),
+    ('fifa-2026-match-76', 76, 'fifa-team-BRA', 'fifa-team-JPN', '2026-06-29 11:00 America/Guatemala'::timestamptz, 'Houston Stadium', 'Houston'),
+    ('fifa-2026-match-74', 74, 'fifa-team-GER', 'fifa-team-PAR', '2026-06-29 14:30 America/Guatemala'::timestamptz, 'Boston Stadium', 'Foxborough'),
+    ('fifa-2026-match-75', 75, 'fifa-team-NED', 'fifa-team-MAR', '2026-06-29 19:00 America/Guatemala'::timestamptz, 'Monterrey Stadium', 'Guadalupe'),
+    ('fifa-2026-match-78', 78, 'fifa-team-CIV', 'fifa-team-NOR', '2026-06-30 11:00 America/Guatemala'::timestamptz, 'Dallas Stadium', 'Arlington'),
+    ('fifa-2026-match-77', 77, 'fifa-team-FRA', 'fifa-team-SWE', '2026-06-30 15:00 America/Guatemala'::timestamptz, 'New York New Jersey Stadium', 'East Rutherford'),
+    ('fifa-2026-match-81', 81, 'fifa-team-USA', 'fifa-team-BIH', '2026-07-01 18:00 America/Guatemala'::timestamptz, 'San Francisco Bay Area Stadium', 'Santa Clara'),
+    ('fifa-2026-match-86', 86, 'fifa-team-ARG', 'fifa-team-CPV', '2026-07-02 16:00 America/Guatemala'::timestamptz, 'Miami Stadium', 'Miami Gardens'),
+    ('fifa-2026-match-88', 88, 'fifa-team-AUS', 'fifa-team-EGY', '2026-07-03 12:00 America/Guatemala'::timestamptz, 'Dallas Stadium', 'Arlington')
 )
 insert into matches(external_id, round, round_order, home_team_id, away_team_id, kickoff_at, stadium, city, status)
 select f.external_id, 'ROUND_OF_32'::match_round, f.round_order, ht.id, at.id, f.kickoff_at, f.stadium, f.city, 'SCHEDULED'::match_status

@@ -72,7 +72,70 @@ describe('production readiness SQL', () => {
   it('seeds son idempotentes por external_id y ON CONFLICT', () => {
     expect(seedSql).toContain('external_id');
     expect(seedSql).toContain('on conflict (external_id) do update');
-    expect((seedSql.match(/wc2026-r32-/g) ?? []).length).toBe(9);
+    expect(seedSql).toContain("insert into teams(name, short_name, fifa_code, iso_code, flag_url, external_id)");
+    expect(seedSql).toContain('insert into matches(external_id, round, round_order, home_team_id, away_team_id, kickoff_at, stadium, city, status)');
+  });
+
+  it('usa los external_id oficiales fifa-team-* y fifa-2026-match-*', () => {
+    const teamIds = [
+      'fifa-team-RSA',
+      'fifa-team-CAN',
+      'fifa-team-BRA',
+      'fifa-team-JPN',
+      'fifa-team-GER',
+      'fifa-team-PAR',
+      'fifa-team-NED',
+      'fifa-team-MAR',
+      'fifa-team-CIV',
+      'fifa-team-NOR',
+      'fifa-team-FRA',
+      'fifa-team-SWE',
+      'fifa-team-USA',
+      'fifa-team-BIH',
+      'fifa-team-ARG',
+      'fifa-team-CPV',
+      'fifa-team-AUS',
+      'fifa-team-EGY',
+    ];
+    const matchIds = [
+      'fifa-2026-match-73',
+      'fifa-2026-match-74',
+      'fifa-2026-match-75',
+      'fifa-2026-match-76',
+      'fifa-2026-match-77',
+      'fifa-2026-match-78',
+      'fifa-2026-match-81',
+      'fifa-2026-match-86',
+      'fifa-2026-match-88',
+    ];
+
+    for (const externalId of teamIds) expect(seedSql).toContain(externalId);
+    for (const externalId of matchIds) expect(seedSql).toContain(externalId);
+    expect(seedSql).not.toContain('team-rsa');
+    expect(seedSql).not.toContain('wc2026-r32-');
+  });
+
+  it('usa estadios, ciudades y round_order oficiales para cada fixture', () => {
+    const fixtures = [
+      ["'fifa-2026-match-73', 73", 'Los Angeles Stadium', 'Inglewood'],
+      ["'fifa-2026-match-76', 76", 'Houston Stadium', 'Houston'],
+      ["'fifa-2026-match-74', 74", 'Boston Stadium', 'Foxborough'],
+      ["'fifa-2026-match-75', 75", 'Monterrey Stadium', 'Guadalupe'],
+      ["'fifa-2026-match-78', 78", 'Dallas Stadium', 'Arlington'],
+      ["'fifa-2026-match-77', 77", 'New York New Jersey Stadium', 'East Rutherford'],
+      ["'fifa-2026-match-81', 81", 'San Francisco Bay Area Stadium', 'Santa Clara'],
+      ["'fifa-2026-match-86', 86", 'Miami Stadium', 'Miami Gardens'],
+      ["'fifa-2026-match-88', 88", 'Dallas Stadium', 'Arlington'],
+    ];
+
+    for (const [matchAndOrder, stadium, city] of fixtures) {
+      expect(seedSql).toContain(matchAndOrder);
+      expect(seedSql).toContain(stadium);
+      expect(seedSql).toContain(city);
+    }
+    expect(seedSql).toContain("'ROUND_OF_32'::match_round");
+    expect(seedSql).toContain("'SCHEDULED'::match_status");
+    expect(seedSql).toContain('::timestamptz');
   });
 });
 
