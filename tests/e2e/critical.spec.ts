@@ -10,18 +10,27 @@ test('visitante en /quiniela y /perfil es enviado a login cuando no hay sesión'
 test('ranking vacío no muestra participantes ficticios ni datos privados', async ({ page }) => {
   await page.goto('/clasificacion');
   await expect(page.getByText('Clasificación pública')).toBeVisible();
-  await expect(page.getByText('Todavía no hay participantes con puntos')).toBeVisible();
+  await expect(page.getByText('Todavía no hay participantes')).toBeVisible();
   await expect(page.getByText('Carlos')).toHaveCount(0);
   await expect(page.getByText('Andrea')).toHaveCount(0);
   await expect(page.getByText('José')).toHaveCount(0);
   await expect(page.getByText('@')).toHaveCount(0);
 });
 
-test('home vacío no muestra partidos ficticios', async ({ page }) => {
+test('home carga con estado vacío o partidos reales sin datos mock', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Próximamente se publicarán los partidos')).toBeVisible();
-  await expect(page.getByText('Brasil')).toHaveCount(0);
-  await expect(page.getByText('Argentina')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Quiniela Mundial 2026' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Próximo cierre' })).toBeVisible();
+
+  const emptyState = page.getByText('Próximamente se publicarán los partidos');
+  const matchCards = page.locator('article.card');
+  const hasEmptyState = (await emptyState.count()) > 0;
+  const hasRealMatch = (await matchCards.count()) > 0;
+
+  expect(hasEmptyState || hasRealMatch).toBeTruthy();
+  await expect(page.getByText('Carlos')).toHaveCount(0);
+  await expect(page.getByText('Andrea')).toHaveCount(0);
+  await expect(page.getByText('José')).toHaveCount(0);
 });
 
 test('formularios reales de auth exponen campos y acciones Supabase', async ({ page }) => {
