@@ -13,6 +13,14 @@ describe('MatchCard countdown hydration safety', () => {
     expect(matchCard).not.toContain('suppressHydrationWarning');
   });
 
+  it('uses a stable kickoff placeholder until mounted before formatting in Guatemala time', () => {
+    expect(matchCard).toContain("if (now === null) return 'Cargando horario...'");
+    expect(matchCard).toContain("timeZone: 'America/Guatemala'");
+    expect(matchCard).toContain("dateStyle: 'medium'");
+    expect(matchCard).toContain("timeStyle: 'short'");
+    expect(matchCard).toContain('}, [match.kickoffAt, now])');
+  });
+
   it('starts and clears browser timers after mount and closes at zero', () => {
     expect(matchCard).toContain('const updateNow = () => setNow(new Date())');
     expect(matchCard).toContain('window.setTimeout(updateNow, 0)');

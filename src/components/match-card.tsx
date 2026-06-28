@@ -85,17 +85,16 @@ export function MatchCard({ match, prediction, readOnly = false }: MatchCardProp
   const hours = remaining === null ? '00' : String(Math.floor(remaining / 3600000)).padStart(2, '0');
   const minutes = remaining === null ? '00' : String(Math.floor((remaining % 3600000) / 60000)).padStart(2, '0');
   const seconds = remaining === null ? '00' : String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
-  const kickoffLabel = useMemo(
-    () =>
-      match.kickoffAt
-        ? new Intl.DateTimeFormat('es-GT', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            timeZone: 'America/Guatemala',
-          }).format(new Date(match.kickoffAt))
-        : 'Fecha oficial pendiente',
-    [match.kickoffAt],
-  );
+  const kickoffLabel = useMemo(() => {
+    if (!match.kickoffAt) return 'Fecha oficial pendiente';
+    if (now === null) return 'Cargando horario...';
+
+    return new Intl.DateTimeFormat('es-GT', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'America/Guatemala',
+    }).format(new Date(match.kickoffAt));
+  }, [match.kickoffAt, now]);
   const predictedOutcome = getPredictedOutcome(home, away);
   const qualifiedTeamId =
     match.round === 'THIRD_PLACE'
