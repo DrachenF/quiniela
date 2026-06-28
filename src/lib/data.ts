@@ -1,6 +1,8 @@
 import type {
   Match,
   MatchRow,
+  MyLeaderboardEntry,
+  MyLeaderboardRow,
   PredictionRow,
   ProfileRow,
   PublicLeaderboardEntry,
@@ -9,6 +11,7 @@ import type {
   TeamRow,
 } from './types';
 import { createClient } from './supabase/server';
+import { sortMatchesByLockAt } from './matches';
 
 export function mapTeam(row: TeamRow | null): Team | null {
   if (!row) return null;
@@ -75,9 +78,10 @@ export async function getMatches(): Promise<Match[]> {
   const { data, error } = await sb
     .from('matches')
     .select('*, home_team:home_team_id(*), away_team:away_team_id(*)')
-    .order('round_order');
+    .order('lock_at', { ascending: true, nullsFirst: false })
+    .order('round_order', { ascending: true });
   if (error) throw error;
-  return ((data ?? []) as MatchRow[]).map(mapMatch);
+  return sortMatchesByLockAt(((data ?? []) as MatchRow[]).map(mapMatch));
 }
 
 export async function getLeaderboard(limit?: number): Promise<PublicLeaderboardEntry[]> {
@@ -87,6 +91,19 @@ export async function getLeaderboard(limit?: number): Promise<PublicLeaderboardE
   if (error) throw error;
   const rows = (data ?? []) as PublicLeaderboardRow[];
   return rows.slice(0, limit).map(mapLeaderboardRow);
+}
+
+export async function getMyLeaderboardEntry(): Promise<MyLeaderboardEntry | null> {
+  const sb = await createClient();
+  if (!sb) return null;
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await sb.rpc('my_leaderboard_entry');
+  if (error) throw error;
+  const rows = (data ?? []) as MyLeaderboardRow[];
+  return rows[0] ? mapLeaderboardRow(rows[0]) : null;
 }
 
 export async function getProfile(): Promise<ProfileRow | null> {
