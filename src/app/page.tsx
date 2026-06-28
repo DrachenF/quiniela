@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { getLeaderboard, getMatches, getProfile } from '@/lib/data';
 import { MatchCard } from '@/components/match-card';
+import { getNextClosingMatch } from '@/lib/matches';
 
 export default async function Home() {
   const [matches, top, profile] = await Promise.all([getMatches(), getLeaderboard(5), getProfile()]);
-  const next = matches.find((match) => match.kickoffAt && match.lockAt && match.status === 'SCHEDULED');
+  const next = getNextClosingMatch(matches);
 
   return (
     <div className="space-y-8">

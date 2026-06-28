@@ -11,6 +11,7 @@ import type {
   TeamRow,
 } from './types';
 import { createClient } from './supabase/server';
+import { sortMatchesByLockAt } from './matches';
 
 export function mapTeam(row: TeamRow | null): Team | null {
   if (!row) return null;
@@ -77,9 +78,10 @@ export async function getMatches(): Promise<Match[]> {
   const { data, error } = await sb
     .from('matches')
     .select('*, home_team:home_team_id(*), away_team:away_team_id(*)')
-    .order('round_order');
+    .order('lock_at', { ascending: true, nullsFirst: false })
+    .order('round_order', { ascending: true });
   if (error) throw error;
-  return ((data ?? []) as MatchRow[]).map(mapMatch);
+  return sortMatchesByLockAt(((data ?? []) as MatchRow[]).map(mapMatch));
 }
 
 export async function getLeaderboard(limit?: number): Promise<PublicLeaderboardEntry[]> {
