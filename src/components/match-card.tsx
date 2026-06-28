@@ -63,22 +63,28 @@ function getPredictedOutcome(home: string, away: string): Outcome | null {
 }
 
 export function MatchCard({ match, prediction, readOnly = false }: MatchCardProps) {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   const [home, setHome] = useState(prediction?.predicted_home_score?.toString() ?? '');
   const [away, setAway] = useState(prediction?.predicted_away_score?.toString() ?? '');
   const [manualQualifiedTeamId, setManualQualifiedTeamId] = useState(prediction?.predicted_qualified_team_id ?? '');
   const [state, action, pending] = useActionState(savePredictionAction, null as SavePredictionState);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
+    const updateNow = () => setNow(new Date());
+    const timeoutId = window.setTimeout(updateNow, 0);
+    const intervalId = window.setInterval(updateNow, 1000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
   }, []);
 
-  const locked = isPredictionLocked(match, now);
-  const remaining = match.lockAt ? Math.max(0, new Date(match.lockAt).getTime() - now.getTime()) : 0;
-  const hours = String(Math.floor(remaining / 3600000)).padStart(2, '0');
-  const minutes = String(Math.floor((remaining % 3600000) / 60000)).padStart(2, '0');
-  const seconds = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+  const locked = now ? isPredictionLocked(match, now) : false;
+  const remaining = now && match.lockAt ? Math.max(0, new Date(match.lockAt).getTime() - now.getTime()) : null;
+  const hours = remaining === null ? '00' : String(Math.floor(remaining / 3600000)).padStart(2, '0');
+  const minutes = remaining === null ? '00' : String(Math.floor((remaining % 3600000) / 60000)).padStart(2, '0');
+  const seconds = remaining === null ? '00' : String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
   const kickoffLabel = useMemo(
     () =>
       match.kickoffAt
@@ -105,8 +111,14 @@ export function MatchCard({ match, prediction, readOnly = false }: MatchCardProp
     <article className="card p-5">
       <div className="flex justify-between gap-3">
         <span className="badge">{roundNames[match.round]}</span>
-        <span className={remaining < 1800000 && !locked ? 'font-bold text-amber-600' : 'text-slate-500'}>
-          {!match.lockAt ? 'Sin fecha oficial' : locked ? 'Pronóstico cerrado' : `Cierra en ${hours}:${minutes}:${seconds}`}
+        <span className={remaining !== null && remaining < 1800000 && !locked ? 'font-bold text-amber-600' : 'text-slate-500'}>
+          {!match.lockAt
+            ? 'Sin fecha oficial'
+            : now === null
+              ? 'Calculando cierre...'
+              : locked || remaining === 0
+                ? 'Pronósticos cerrados'
+                : `Cierra en ${hours}:${minutes}:${seconds}`}
         </span>
       </div>
 
